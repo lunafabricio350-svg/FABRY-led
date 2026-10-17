@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Control LED ESP32</title>
+
+    <!-- Biblioteca MQTT para el navegador -->
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background: #f1f5f9;
+            color: greenyellow;
+            padding: 30px;
+            background-color: black;
+        }
+
+        .panel {
+            background: grey;
+            max-width: 400px;
+            margin: auto;
+            padding: 25px;
+            border-radius: 15px;
+        }
+
+        button {
+            padding: 14px 24px;
+            margin: 10px;
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        #btnEncender {
+            background: #16a34a;
+        }
+
+        #btnApagar {
+            background: #dc2626;
+        }
+
+        #estado {
+            font-weight: bold;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="panel">
+        <h1>Control LED ESP32</h1>
+
+        <p>Conexión MQTT:</p>
+        <p id="conexion">Conectando...</p>
+
+        <h2 id="estado">LED: desconocido</h2>
+
+        <button id="btnEncender">ENCENDER</button>
+        <button id="btnApagar">APAGAR</button>
+    </div>
+
+    <script>
+        // 1. Datos de conexión de EMQX Cloud
+        const host = "af1ea9e3.ala.us-east-1.emqxsl.com";
+        const puerto = 8084;
+
+        const usuario = "esp32led";
+        const clave = "123456";
+
+        // 2. Temas MQTT
+        const temaControl = "esp32/proyecto/led/set";
+        const temaEstado = "esp32/proyecto/led";
+        // 3. Conectar al broker mediante WSS
+        const cliente = mqtt.connect(
+            `wss://${host}:${puerto}/mqtt`,
+            {
+                username: usuario,
+                password: clave,
+                clientId: "web_led_" +
+                    Math.random().toString(16).slice(2, 10),
+                clean: true,
+                connectTimeout: 10000,
+                reconnectPeriod: 3000
+            }
+        );
+
+        const conexion = document.getElementById("conexion");
+        const estado = document.getElementById("estado");
+
+        // 4. Cuando se conecta
+        cliente.on("connect", () => {
+            conexion.textContent = "Conectado a EMQX";
+
+            // Escuchar el estado del LED
+            cliente.subscribe(temaEstado, (error) => {
+                if (error) {
+                    console.error("Error al suscribirse:", error);
+                }
+            });
+        });
+
+        // 5. Mostrar errores de conexión
+        cliente.on("error", (error) => {
+            conexion.textContent = "Error de conexión";
+            console.error(error);
+        });
+
+        cliente.on("offline", () => {
+            conexion.textContent = "Desconectado";
+        });
+
+        // 6. Recibir el estado publicado por el ESP32
+        cliente.on("message", (tema, payload) => {
+            if (tema === temaEstado) {
+                estado.textContent =
+                    "LED: " + payload.toString();
+            }
+        });
+
+        // 7. Botón para encender
+        document.getElementById("btnEncender")
+            .addEventListener("click", () => {
+
+                if (!cliente.connected) {
+                    alert("No hay conexión con EMQX");
+                    return;
+                }
+
+                cliente.publish(temaControl, "ON");
+            });
+
+        // 8. Botón para apagar
+        document.getElementById("btnApagar")
+            .addEventListener("click", () => {
+
+                if (!cliente.connected) {
+                    alert("No hay conexión con EMQX");
+                    return;
+                }
+
+                cliente.publish(temaControl, "OFF");
+            });
+    </script>
+
+</body>
+</html>
